@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Who Is The Spy - Full Version A2</title>
+<style>
+    body {
+        background:#111;
+        color:white;
+        font-family:Arial, sans-serif;
+        text-align:center;
+    }
+    .box {
+        background:#222;
+        padding:20px;
+        border-radius:12px;
+        width:90%;
+        max-width:420px;
+        margin:20px auto;
+    }
+    button {
+        width:90%;
+        padding:12px;
+        border:none;
+        border-radius:8px;
+        background:#00c853;
+        color:white;
+        font-size:18px;
+        margin:10px 0;
+    }
+    input, select {
+        width:90%;
+        padding:10px;
+        margin:6px 0;
+        border-radius:6px;
+        border:none;
+    }
+    .roleItem {
+        background:#333;
+        padding:10px;
+        margin:6px;
+        border-radius:8px;
+    }
+    .locked {
+        color:#f44;
+    }
+</style>
+</head>
+<body>
+
+<h1>WHO IS THE SPY</h1>
+
+<div id="menu" class="box">
+    <h2>Profil</h2>
+    <p>Nama: <span id="profileName"></span></p>
+    <p>Gems: <span id="profileGems"></span> 💎</p>
+
+    <button onclick="openGameSetup()">Mulai Game</button>
+    <button onclick="openRolesShop()">Toko Role</button>
+    <button onclick="openProfileEdit()">Edit Profil</button>
+</div>
+
+<!-- PROFILE EDIT -->
+<div id="profileEdit" class="box" style="display:none;">
+    <h2>Ubah Nama</h2>
+    <input id="newName" placeholder="Nama baru">
+    <button onclick="saveName()">Simpan</button>
+    <button onclick="backToMenu()">Kembali</button>
+</div>
+
+<!-- SHOP -->
+<div id="roleShop" class="box" style="display:none;">
+    <h2>Toko Role</h2>
+    <div id="shopList"></div>
+    <button onclick="backToMenu()">Kembali</button>
+</div>
+
+<!-- GAME SETUP -->
+<div id="setup" class="box" style="display:none;">
+    <h2>Setup Game</h2>
+
+    <input id="playerCount" type="number" placeholder="Jumlah pemain">
+
+    <select id="wordMode">
+        <option value="auto">Kata otomatis</option>
+        <option value="manual">Kata manual</option>
+    </select>
+
+    <input id="citizenWord" placeholder="Kata Citizen (jika manual)">
+    <input id="spyWord" placeholder="Kata Spy (jika manual)">
+
+    <button onclick="selectRoles()">Pilih Roles</button>
+    <button onclick="backToMenu()">Kembali</button>
+</div>
+
+<!-- ROLE SELECTION -->
+<div id="roleSelect" class="box" style="display:none;">
+    <h2>Pilih Role Aktif</h2>
+    <div id="roleSelectList"></div>
+    <button onclick="startNameInput()">Lanjut</button>
+</div>
+
+<!-- NAME INPUT -->
+<div id="nameInput" class="box" style="display:none;">
+    <h2>Masukkan Nama Pemain</h2>
+    <div id="namesList"></div>
+    <button onclick="startGame()">Mulai Game</button>
+</div>
+
+<!-- CARD VIEW -->
+<div id="card" class="box" style="display:none; font-size:24px;"></div>
+<button id="nextBtn" style="display:none;" onclick="nextCard()">Pemain Berikutnya</button>
+
+<!-- VOTING -->
+<div id="voteArea" class="box" style="display:none;">
+    <h2>Voting</h2>
+    <p>Pilih pemain yang kamu curigai:</p>
+    <div id="voteList"></div>
+</div>
+
+<!-- RESULTS -->
+<div id="results" class="box" style="display:none;">
+    <h2>Hasil Voting</h2>
+    <pre id="resultText"></pre>
+    <button onclick="finishAndReward()">Selesai</button>
+</div>
+
+<script>
+// --------------------------------------
+// LOCAL STORAGE SYSTEM
+// --------------------------------------
+let playerName = localStorage.getItem("name") || "Player";
+let gems = parseInt(localStorage.getItem("gems") || "0");
+
+document.getElementById("profileName").innerText = playerName;
+document.getElementById("profileGems").innerText = gems;
+
+// --------------------------------------
+// ROLE DATA
+// --------------------------------------
+let roleList = {
+    "Citizen": {price:0, bought:true, desc:"Orang biasa."},
+    "Spy": {price:0, bought:true, desc:"Penjahat utama."},
+    "Detective": {price:20, bought:false, desc:"Bisa melihat 1 hint."},
+    "Necromancer": {price:25, bought:false, desc:"Bangkitkan 1 pemain mati."},
+    "Brute": {price:30, bought:false, desc:"Eliminasi 2 pemain sekaligus."},
+    "President": {price:50, bought:false, desc:"Mengendalikan Spy & Polisi; Eliminasi 2 orang."}
+};
+
+// --------------------------------------
+// UI NAVIGATION
+// --------------------------------------
+function backToMenu() {
+    hideAll();
+    document.getElementById("menu").style.display = "block";
+}
+
+function hideAll() {
+    document.querySelectorAll(".box").forEach(b => b.style.display = "none");
+    document.getElementById("nextBtn").style.display = "none";
+}
+
+// --------------------------------------
+// PROFILE
+// --------------------------------------
+function openProfileEdit() {
+    hideAll();
+    document.getElementById("profileEdit").style.display = "block";
+}
+function saveName() {
+    let n = document.getElementById("newName").value.trim();
+    if (!n) return alert("Nama tidak boleh kosong!");
+    playerName = n;
+    localStorage.setItem("name", n);
+    backToMenu();
+}
+
+// --------------------------------------
+// SHOP
+// --------------------------------------
+function openRolesShop() {
+    hideAll();
+    document.getElementById("roleShop").style.display = "block";
+
+    let list = document.getElementById("shopList");
+    list.innerHTML = "";
+
+    for (let r in roleList) {
+        let data = roleList[r];
+        let owned = data.bought ? "" : `<button onclick="buyRole('${r}')">Beli ${data.price} 💎</button>`;
+
+        list.innerHTML += `
+            <div class="roleItem">
+                <b>${r}</b> - ${data.desc} <br>
+                ${data.bought ? "<span style='color:#0f0;'>Sudah Dibeli</span>" : `<span class='locked'>${data.price} 💎</span>`}<br>
+                ${owned}
+            </div>
+        `;
+    }
+}
+
+function buyRole(role) {
+    let r = roleList[role];
+    if (r.bought) return;
+
+    if (gems < r.price) return alert("Gems tidak cukup!");
+    gems -= r.price;
+    r.bought = true;
+
+    localStorage.setItem("gems", gems);
+    openRolesShop();
+}
+
+// --------------------------------------
+// GAME SETUP
+// --------------------------------------
+function openGameSetup() {
+    hideAll();
+    document.getElementById("setup").style.display = "block";
+}
+
+let selectedRoles = [];
+
+function selectRoles() {
+    hideAll();
+    document.getElementById("roleSelect").style.display = "block";
+
+    let list = document.getElementById("roleSelectList");
+    list.innerHTML = "";
+
+    for (let r in roleList) {
+        if (!roleList[r].bought) continue;
+
+        list.innerHTML += `
+            <label>
+                <input type="checkbox" value="${r}">
+                ${r}
+            </label><br>
+        `;
+    }
+}
+
+function startNameInput() {
+    selectedRoles = [...document.querySelectorAll("#roleSelectList input:checked")].map(i => i.value);
+
+    hideAll();
+    document.getElementById("nameInput").style.display = "block";
+
+    let count = parseInt(document.getElementById("playerCount").value);
+    let box = document.getElementById("namesList");
+    box.innerHTML = "";
+
+    for (let i = 0; i < count; i++) {
+        box.innerHTML += `<input placeholder="Pemain ${i+1}"><br>`;
+    }
+}
+
+// --------------------------------------
+// GAME LOGIC
+// --------------------------------------
+let players = [];
+let roles = [];
+let currentIndex = 0;
+let votes = {};
+
+function startGame() {
+    let nameInputs = document.querySelectorAll("#nameInput input");
+    players = [...nameInputs].map(i => i.value.trim() || "Player");
+
+    // Make roles
+    roles = [];
+
+    // Always include spy & citizen
+    roles.push("Spy");
+    roles.push("Citizen");
+
+    // Add selected roles
+    selectedRoles.forEach(r => roles.push(r));
+
+    // Fill rest with citizen
+    while (roles.length < players.length) {
+        roles.push("Citizen");
+    }
+
+    // Shuffle
+    roles = roles.sort(() => Math.random() - 0.5);
+
+    hideAll();
+    showCard();
+}
+
+function showCard() {
+    let c = document.getElementById("card");
+    c.style.display = "block";
+    c.innerText = `${players[currentIndex]}, klik untuk lihat peran`;
+
+    c.onclick = () => {
+        c.innerText = roles[currentIndex];
+        document.getElementById("nextBtn").style.display = "block";
+        c.onclick = null;
+    }
+}
+
+function nextCard() {
+    currentIndex++;
+    document.getElementById("nextBtn").style.display = "none";
+
+    if (currentIndex >= players.length) {
+        startVoting();
+        return;
+    }
+
+    showCard();
+}
+
+// --------------------------------------
+// VOTING
+// --------------------------------------
+function startVoting() {
+    hideAll();
+    document.getElementById("voteArea").style.display = "block";
+
+    let list = document.getElementById("voteList");
+    list.innerHTML = "";
+
+    players.forEach(p => {
+        list.innerHTML += `
+            <button onclick="vote('${p}')">${p}</button>
+        `;
+    });
+}
+
+function vote(p) {
+    votes[p] = (votes[p] || 0) + 1;
+
+    if (Object.values(votes).reduce((a,b)=>a+b,0) === players.length) {
+        showResults();
+    }
+}
+
+// --------------------------------------
+// RESULTS + GEM REWARD
+// --------------------------------------
+function showResults() {
+    hideAll();
+    document.getElementById("results").style.display = "block";
+
+    let t = "";
+    for (let p in votes) {
+        t += `${p}: ${votes[p]} vote\n`;
+    }
+    document.getElementById("resultText").innerText = t;
+}
+
+function finishAndReward() {
+    gems += 2;
+    localStorage.setItem("gems", gems);
+    backToMenu();
+    document.getElementById("profileGems").innerText = gems;
+}
+
+</script>
+</body>
+</html>
